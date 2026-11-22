@@ -19,6 +19,11 @@
 | Earnings | Vendor totals, 14-day chart, upcoming schedule | `/api/vendor/earnings` |
 | Installable app | Manifest + service worker (network-first, API never cached) | `public/manifest.webmanifest`, `public/sw.js` |
 | Dark mode / languages | Follows system theme, 🌓 toggle; English, Hindi, Kannada for the main screens | `public/app.js` (`I18N`) |
+| Category tiles, stars, sorting | Coloured icon tile per category, star ratings with review counts, sort by price / rating / most reviewed | `serviceCard()`, `#sort` in `public/app.js` |
+| Favourites | Heart on every service, "♥ Saved" filter, stored per account | `/api/favorites` |
+| Notification bell | In-app list of order updates, payments, messages and refunds, with unread badge (polls every 45 s) | `/api/notifications` |
+| Motion | Cards fade up on scroll, lift on hover, grey skeleton loaders, confetti after payment (all off for reduced-motion) | `revealCards()`, `skeleton()`, `confetti()` |
+| Admin charts | Orders per day, completed sales per day, orders by category and status | `/api/admin/charts` |
 | Safety | 600 requests/min/IP, 20 auth-related attempts/10 min, admin audit log (latest 100) | `limited()`, `audit()` |
 
 ## Not included (needs accounts or decisions outside the code)

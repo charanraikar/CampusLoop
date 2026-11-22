@@ -57,6 +57,9 @@ export function createApp({dbPath=join(root,'data','campusloop.db'), demo=false,
     CREATE TABLE IF NOT EXISTS coupons(code TEXT PRIMARY KEY, percent INTEGER NOT NULL CHECK(percent BETWEEN 1 AND 50), max_uses INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0, owner_id INTEGER REFERENCES users(id), first_order_only INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), sender_id INTEGER NOT NULL REFERENCES users(id), body TEXT NOT NULL, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
     CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, actor_id INTEGER, action TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+    CREATE TABLE IF NOT EXISTS favorites(user_id INTEGER NOT NULL REFERENCES users(id), service_id INTEGER NOT NULL REFERENCES services(id), PRIMARY KEY(user_id,service_id));
+    CREATE TABLE IF NOT EXISTS notifications(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', read INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id,id);
     CREATE INDEX IF NOT EXISTS idx_messages_order ON messages(order_id);
   `);
   for(const [t,c,d] of [['users','email_verified','INTEGER NOT NULL DEFAULT 0'],['users','ref_code','TEXT'],['users','referred_by','INTEGER'],['orders','slot',"TEXT NOT NULL DEFAULT ''"],['orders','coupon',"TEXT NOT NULL DEFAULT ''"],['orders','discount','INTEGER NOT NULL DEFAULT 0'],['vendor_profiles','whatsapp',"TEXT NOT NULL DEFAULT ''"]]) { try { db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${d}`); } catch {} }
@@ -86,7 +89,10 @@ export function createApp({dbPath=join(root,'data','campusloop.db'), demo=false,
   const newToken = (userId,kind,ttl) => { const raw=randomBytes(24).toString('hex'); run('DELETE FROM tokens WHERE expires<?',Date.now()); run('INSERT INTO tokens VALUES(?,?,?,?)',hashToken(raw),userId,kind,Date.now()+ttl); return raw; };
   const useToken = (raw,kind) => { const row=one('SELECT * FROM tokens WHERE hash=? AND kind=? AND expires>?',hashToken(String(raw||'')),kind,Date.now()); if(row) run('DELETE FROM tokens WHERE hash=?',row.hash); return row?row.user_id:null; };
   const audit = (actorId,action,detail='') => run('INSERT INTO audit(actor_id,action,detail) VALUES(?,?,?)',actorId||null,action,String(detail).slice(0,300));
-  const notify = (userId,subject,body) => { const u=one('SELECT email FROM users WHERE id=?',userId); if(u) sendMail(u.email,subject,body); };
+  const notify = (userId,subject,body) => { const u=one('SELECT email FROM users WHERE id=?',userId); if(!u) return;
+    run('INSERT INTO notifications(user_id,title,body) VALUES(?,?,?)',userId,String(subject).slice(0,120),String(body).slice(0,600));
+    run('DELETE FROM notifications WHERE user_id=? AND id NOT IN (SELECT id FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 100)',userId,userId);
+    sendMail(u.email,subject,body); };
   const waNumber = v => { if(typeof v!=='string'||!v.trim()) return ''; let d=v.replace(/[\s()+-]/g,''); if(!/^\d+$/.test(d)) return null; if(d.length===10) d='91'+d; else if(d.length===11&&d.startsWith('0')) d='91'+d.slice(1); return d.length>=11&&d.length<=15?d:null; };
   const refCode = () => 'REF'+randomBytes(4).toString('hex').toUpperCase();
   const buckets = new Map();
@@ -242,7 +248,7 @@ export function createApp({dbPath=join(root,'data','campusloop.db'), demo=false,
         }
         fail(405,'Method not allowed');
       }
-      if(path==='/api/services' && req.method==='GET') return send(200,all(`SELECT s.*, u.name vendor, (SELECT ROUND(AVG(r.rating),1) FROM reviews r JOIN orders o ON o.id=r.order_id WHERE o.service_id=s.id) rating FROM services s JOIN users u ON u.id=s.vendor_id WHERE u.approved=1 ORDER BY s.id`));
+      if(path==='/api/services' && req.method==='GET') return send(200,all(`SELECT s.*, u.name vendor, (SELECT ROUND(AVG(r.rating),1) FROM reviews r JOIN orders o ON o.id=r.order_id WHERE o.service_id=s.id) rating, (SELECT COUNT(*) FROM reviews r JOIN orders o ON o.id=r.order_id WHERE o.service_id=s.id) reviews FROM services s JOIN users u ON u.id=s.vendor_id WHERE u.approved=1 ORDER BY s.id`));
       if(path==='/api/services' && req.method==='POST') {
         requireRole('vendor');if(!user.approved) fail(403,'Admin approval required');
         if(!CATEGORIES.includes(body.category)) fail(400,'Invalid category');
@@ -365,6 +371,24 @@ export function createApp({dbPath=join(root,'data','campusloop.db'), demo=false,
         audit(user.id,'earnings exported',`${rows.length} orders`);
         res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="campusloop-earnings-${new Date().toISOString().slice(0,10)}.csv"`,'Cache-Control':'no-store'});
         return res.end('\ufeff'+lines.join('\r\n')+'\r\n');
+      }
+      if(path==='/api/favorites' && req.method==='GET') {requireRole();return send(200,all('SELECT service_id FROM favorites WHERE user_id=?',user.id).map(r=>r.service_id));}
+      const fav=path.match(/^\/api\/favorites\/(\d+)$/);
+      if(fav && req.method==='POST') {
+        requireRole();const sid=Number(fav[1]);if(!one('SELECT 1 FROM services WHERE id=?',sid)) fail(404,'Service not found');
+        const had=run('DELETE FROM favorites WHERE user_id=? AND service_id=?',user.id,sid).changes>0;
+        if(!had) run('INSERT INTO favorites(user_id,service_id) VALUES(?,?)',user.id,sid);
+        return send(200,{favorite:!had});
+      }
+      if(path==='/api/notifications' && req.method==='GET') {requireRole();return send(200,{unread:one('SELECT COUNT(*) n FROM notifications WHERE user_id=? AND read=0',user.id).n,items:all('SELECT id,title,body,read,created FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 30',user.id)});}
+      if(path==='/api/notifications/read' && req.method==='POST') {requireRole();run('UPDATE notifications SET read=1 WHERE user_id=? AND read=0',user.id);return send(200,{ok:true});}
+      if(path==='/api/admin/charts' && req.method==='GET') {
+        requireRole('admin');
+        return send(200,{
+          perDay:all("SELECT substr(created,1,10) day, COUNT(*) orders, COALESCE(SUM(CASE WHEN status='completed' THEN amount ELSE 0 END),0) sales FROM orders WHERE created>=date('now','-13 days') GROUP BY day ORDER BY day"),
+          byStatus:all('SELECT status, COUNT(*) n FROM orders GROUP BY status ORDER BY n DESC'),
+          byCategory:all('SELECT s.category, COUNT(*) n FROM orders o JOIN services s ON s.id=o.service_id GROUP BY s.category ORDER BY n DESC')
+        });
       }
       if(path==='/api/admin/audit' && req.method==='GET') {requireRole('admin');return send(200,all('SELECT a.id,a.action,a.detail,a.created,u.name actor FROM audit a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.id DESC LIMIT 100'));}
       const rf=path.match(/^\/api\/admin\/orders\/(\d+)\/refund$/);
