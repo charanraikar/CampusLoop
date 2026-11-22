@@ -1,0 +1,36 @@
+# Free portfolio demonstration: local data resets on restart/redeploy/sleep.
+# Use render-persistent.yaml only after accepting the paid hosting costs.
+services:
+  - type: web
+    name: campusloop-demo
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: DEMO_MODE
+        value: 'true'
+      - key: HOST
+        value: 0.0.0.0
+      - key: SECURE_COOKIES
+        value: 'true'
+      # Add real values in the Render dashboard -> Environment (never commit secrets).
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM_EMAIL
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: CampusLoop
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: TRUST_PROXY
+        value: 'true'

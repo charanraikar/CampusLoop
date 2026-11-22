@@ -1,0 +1,38 @@
+# Optional PAID configuration. Review the provider's quoted cost before deploying.
+services:
+  - type: web
+    name: campusloop
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: campusloop-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: DEMO_MODE
+        value: 'false'
+      - key: HOST
+        value: 0.0.0.0
+      - key: DB_PATH
+        value: /app/data/campusloop.db
+      - key: SECURE_COOKIES
+        value: 'true'
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM_EMAIL
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: CampusLoop
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: TRUST_PROXY
+        value: 'true'
