@@ -55,3 +55,25 @@ dialog{background:var(--surface)}
 
 .csvrow{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
 .csvrow label{flex:1;min-width:140px}
+
+/* Hero: services orbiting the CampusLoop hub */
+.orbit-stage{position:relative;width:min(100%,430px);aspect-ratio:1;margin:0 auto;--r:140px;--dur:48s;isolation:isolate}
+.orbit-stage .blob{position:absolute;inset:6%;background:var(--lime);border-radius:44% 56% 60% 40%;z-index:-1;animation:blobMorph 18s ease-in-out infinite alternate}
+@keyframes blobMorph{0%{border-radius:44% 56% 60% 40%;transform:rotate(-3deg)}50%{border-radius:58% 42% 45% 55%;transform:rotate(4deg) scale(1.03)}100%{border-radius:48% 52% 38% 62%;transform:rotate(-2deg)}}
+.orbit-stage .path{position:absolute;inset:calc(50% - var(--r));border:2px dashed #183a3055;border-radius:50%;animation:orbitSpin calc(var(--dur) * 1.5) linear infinite reverse}
+.orbit-stage .hub{position:absolute;top:50%;left:50%;width:92px;height:92px;margin:-46px 0 0 -46px;display:grid;place-items:center;background:#183a30;color:#d8f277;border-radius:30px;font-size:40px;font-weight:800;box-shadow:0 0 0 10px #183a3020;animation:hubPulse 3.4s ease-in-out infinite}
+@keyframes hubPulse{50%{transform:scale(1.07);box-shadow:0 0 0 17px #183a3012}}
+.orbit-stage .ring{position:absolute;inset:0;animation:orbitSpin var(--dur) linear infinite}
+@keyframes orbitSpin{to{transform:rotate(360deg)}}
+.orbit-stage .slot{position:absolute;top:50%;left:50%;transform:rotate(var(--a)) translateX(var(--r))}
+.orbit-stage .upright{position:absolute;left:0;top:0;transform:rotate(calc(-1 * var(--a)))}
+.orbit-stage .chip{position:absolute;left:0;top:0;translate:-50% -50%;animation:orbitUnspin var(--dur) linear infinite}
+@keyframes orbitUnspin{to{transform:rotate(-360deg)}}
+.orbit-stage .card{display:flex;align-items:center;gap:8px;white-space:nowrap;background:var(--surface);color:var(--ink);padding:10px 15px;border-radius:16px;box-shadow:0 10px 25px #183a3026;font-weight:700;font-size:15px;animation:chipBob 5s ease-in-out infinite alternate}
+.orbit-stage .emoji{font-size:22px}
+@keyframes chipBob{from{transform:translateY(-5px)}to{transform:translateY(6px)}}
+.orbit-stage .s1{--a:-90deg}.orbit-stage .s2{--a:-18deg}.orbit-stage .s3{--a:54deg}.orbit-stage .s4{--a:126deg}.orbit-stage .s5{--a:198deg}
+.orbit-stage .s2 .card{animation-delay:-1s}.orbit-stage .s3 .card{animation-delay:-2s}.orbit-stage .s4 .card{animation-delay:-3s}.orbit-stage .s5 .card{animation-delay:-4s}
+.orbit-stage:hover .ring,.orbit-stage:hover .chip,.orbit-stage:hover .path{animation-play-state:paused}
+@media (max-width:520px){.orbit-stage{width:min(100%,320px);--r:102px}.orbit-stage .hub{width:70px;height:70px;margin:-35px 0 0 -35px;font-size:30px;border-radius:22px}.orbit-stage .card{padding:7px 10px;font-size:12.5px;gap:6px}.orbit-stage .emoji{font-size:17px}}
+@media (prefers-reduced-motion:reduce){.orbit-stage .blob,.orbit-stage .path,.orbit-stage .hub,.orbit-stage .ring,.orbit-stage .chip,.orbit-stage .card{animation:none}}
